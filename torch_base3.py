@@ -1,7 +1,3 @@
-"""
-https://www.kaggle.com/code/umar47/planttraits-torch-starter-cnn-resnet/notebook
-"""
-
 import os
 import timm
 import pandas as pd
@@ -18,6 +14,7 @@ from sklearn.model_selection import StratifiedKFold
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torchmetrics.regression import R2Score
 from torch.optim.lr_scheduler import OneCycleLR
@@ -28,10 +25,21 @@ from albumentations.pytorch import ToTensorV2
 
 warnings.filterwarnings("ignore")
 
+# # Set a seed for PyTorch
+# seed_value = 42
+# torch.manual_seed(seed_value)
+# if torch.cuda.is_available():
+#     torch.cuda.manual_seed(seed_value)
+
+# # Set a seed for NumPy (if you're using NumPy alongside PyTorch)
+# np.random.seed(seed_value)
+
 class CFG:
     verbose = 1  # Verbosity
     seed = 42  # Random seed
-    model_name = 'maxvit_tiny_tf_384.in1k'  # Name of pretrained classifier
+    # model_name = 'maxvit_tiny_tf_384.in1k'  # Name of pretrained classifier
+    # model_name = 'resnet50.a1_in1k'  # Name of pretrained classifier
+    model_name = 'efficientnet_b3.ra2_in1k'  # Name of pretrained classifier
     image_size = 384  # Input image size
     epochs = 12 # Training epochs
     batch_size = 8  # Batch size
@@ -48,6 +56,8 @@ class CFG:
 
 BASE_PATH = '../planttraits2024/'
 
+# print(f'{CFG.model_name}/sample_submission.csv')
+
 # Train + Valid
 df = pd.read_csv(f'{BASE_PATH}/train.csv')
 df['image_path'] = f'{BASE_PATH}/train_images/'+df['id'].astype(str)+'.jpeg'
@@ -59,7 +69,6 @@ test_df = pd.read_csv(f'{BASE_PATH}/test.csv')
 test_df['image_path'] = f'{BASE_PATH}/test_images/'+test_df['id'].astype(str)+'.jpeg'
 FEATURE_COLS = test_df.columns[1:-1].tolist()
 print(test_df.head(2))
-
 
 class PlantDataset(Dataset):
     def __init__(self, paths, features, labels=None, aux_labels=None, transform=None, augment=False):
@@ -83,11 +92,12 @@ class PlantDataset(Dataset):
         # Apply augmentations
         if self.augment:
             augmented = self.transform(image=image)
-            image = augmented['image']
+            image = augmented['image']            
         else:
             # Ensure channel dimension is the first one
             image = np.transpose(image, (2, 0, 1))
             image = torch.tensor(image, dtype=torch.float32)
+
 
         if self.labels is not None:
             label = torch.tensor(self.labels[idx])
@@ -95,7 +105,7 @@ class PlantDataset(Dataset):
             return {'images': image, 'features': feature}, (label, aux_label)
         else:
             return {'images': image, 'features': feature}
-    
+
     def decode_image(self, path):
         image = Image.open(path)
         image = image.resize((CFG.image_size,CFG.image_size))
@@ -103,7 +113,7 @@ class PlantDataset(Dataset):
         return image
 
 def build_augmenter():
-    """Define Albumentations augmentations"""
+    # Define Albumentations augmentations
     transform = A.Compose([
         A.RandomBrightness(limit=0.1, always_apply=False, p=0.5),
         A.RandomContrast(limit=0.1, always_apply=False, p=0.5),
@@ -116,11 +126,8 @@ def build_augmenter():
 
     return transform
 
-def build_dataset(paths, features, labels=None, aux_labels=None, 
-                  batch_size=32, cache=True, augment=True, repeat=True, 
-                  shuffle=1024, cache_dir="", drop_remainder=False):
-    dataset = PlantDataset(paths, features, labels, aux_labels, 
-                           transform=build_augmenter(), augment=augment)
+def build_dataset(paths, features, labels=None, aux_labels=None, batch_size=32, cache=True, augment=True, repeat=True, shuffle=1024, cache_dir="", drop_remainder=False):
+    dataset = PlantDataset(paths, features, labels, aux_labels, transform=build_augmenter(), augment=augment)
 
     if cache_dir != "" and cache:
         os.makedirs(cache_dir, exist_ok=True)
@@ -140,6 +147,10 @@ for i, trait in enumerate(CFG.class_names):
 df["final_bin"] = df[[f"bin_{i}" for i in range(len(CFG.class_names))]].astype(str).agg("".join, axis=1)
 
 df["fold"] = -1  # Initialize fold column
+
+# Perform the stratified split using final bin
+for fold, (train_idx, valid_idx) in enumerate(skf.split(df, df["final_bin"])):
+    df.loc[valid_idx, "fold"] = fold
 
 # Sample from full data
 sample_df = df.copy()
@@ -169,19 +180,15 @@ valid_dataloader = build_dataset(valid_paths, valid_features, valid_labels, vali
                          batch_size=CFG.batch_size,
                          repeat=False, shuffle=False, augment=False, cache=False)
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-class MixedModel(nn.Module):
-    """Dense network for feature information"""
+class CustomModel(nn.Module):
     def __init__(self, num_classes, aux_num_classes, feature_cols, model_name):
-        super(MixedModel, self).__init__()
+        super(CustomModel, self).__init__()
 
         # Define input layers
         self.img_input = nn.Identity()
         self.feat_input = nn.Identity()
 
-        # Load pre-trained model
+        # Load pre-trained EfficientNetV2 model
         self.backbone = timm.create_model(model_name, pretrained=True)
 
         # Adapt the model to match the expected output size
@@ -199,29 +206,31 @@ class MixedModel(nn.Module):
         self.head = nn.Linear(1064, num_classes)
         self.aux_head = nn.Linear(1064, aux_num_classes)
 
-
     def forward(self, img, feat):
-        """Forward pass"""
         # Image branch
         x1 = self.backbone(img)
         x1 = self.dropout_img(x1.flatten(1))
 
         # Feature branch
-        x2 = nn.functional.selu(self.dense1(self.feat_input(feat)))
-        x2 = nn.functional.selu(self.dense2(x2))
+        x2 = F.selu(self.dense1(self.feat_input(feat)))
+        x2 = F.selu(self.dense2(x2))
         x2 = self.dropout_feat(x2)
 
         # Concatenate both branches
         concat = torch.cat([x1, x2], dim=1)
         # Output layer
         out1 = self.head(concat)
-        out2 = nn.functional.relu(self.aux_head(concat))
+        out2 = F.relu(self.aux_head(concat))
 
         return {'head': out1, 'aux_head': out2}
 
-model = MixedModel(CFG.num_classes, CFG.aux_num_classes, FEATURE_COLS, model_name=CFG.model_name)
+
+# Instantiate the model with the desired EfficientNetV2 model_name
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = CustomModel(CFG.num_classes, CFG.aux_num_classes, FEATURE_COLS, model_name=CFG.model_name)
 model.to(device)
-torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1) #to avoid nan losses
+# Print the model summary
+# print(model)
 
 class R2Loss(nn.Module):
     def __init__(self, use_mask=False):
@@ -283,14 +292,9 @@ weight_head = 1.0
 weight_aux_head = 0.3
 
 # Model checkpoint
-best_model_path = "best_model.pth"
+best_model_path = f'{CFG.model_name}_best_model.pth'
 best_r2_score = -float('inf')
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.lr)
-
-criterion_mean = nn.MSELoss()
-criterion_aux = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5)
 
 # Initialize the R2Score metric
 metric_head = R2Score(num_outputs=6, multioutput='uniform_average').to(device)
@@ -360,16 +364,18 @@ for epoch in range(CFG.epochs):
         best_r2_score = avg_val_r2
         torch.save(model.state_dict(), best_model_path)
 
-model.eval()  # Set the model to evaluation mode
-
-# List to store predictions
-all_predictions = []
+model.load_state_dict(torch.load(best_model_path))
 
 # Test
 test_paths = test_df.image_path.values
 test_features = scaler.transform(test_df[FEATURE_COLS].values) 
 test_ds = build_dataset(test_paths, test_features, batch_size=CFG.batch_size,
                          repeat=False, shuffle=False, augment=False, cache=False)
+
+model.eval()  # Set the model to evaluation mode
+
+# List to store predictions
+all_predictions = []
 
 # Iterate over batches in the test data loader
 for batch_idx, inputs_dict in enumerate(tqdm(test_ds, desc='Testing')):
@@ -393,141 +399,9 @@ all_predictions = np.concatenate(all_predictions, axis=0)
 pred_df = test_df[["id"]].copy()
 target_cols = [x.replace("_mean","") for x in CFG.class_names]
 pred_df[target_cols] = all_predictions.tolist()
+
 sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission.csv')
 sub_df = sub_df[["id"]].copy()
 sub_df = sub_df.merge(pred_df, on="id", how="left")
-sub_df.to_csv("submission.csv", index=False)
+sub_df.to_csv(f"{CFG.model_name}.csv", index=False)
 sub_df.head()
-
-# # Define loss functions and metrics
-# criterion_head = R2Loss(use_mask=False)
-# criterion_aux_head = R2Loss(use_mask=True)
-
-# # Loss weights
-# weight_head = 1.0
-# weight_aux_head = 0.3
-
-# model_names = ['maxvit_tiny_tf_384.in1k','resnet50.a1_in1k', 'efficientnet_b3.ra2_in1k']
-# for model_name in model_names:
-#     # Create unique model
-#     model = MixedModel(CFG.num_classes, CFG.aux_num_classes, FEATURE_COLS, model_name=model_name)
-#     model.to(device)
-#     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1) # to avoid nan losses
-
-#     # Model checkpoint
-#     save_str = model_name.rsplit('.', 1)[0]
-#     best_model_path = "best_" + save_str + ".pth"
-#     best_r2_score = -float('inf')
-#     optimizer = torch.optim.Adam(model.parameters(), lr=CFG.lr)
-
-#     criterion_mean = nn.MSELoss()
-#     criterion_aux = nn.MSELoss()
-#     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-#     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5)
-
-#     # Initialize the R2Score metric
-#     metric_head = R2Score(num_outputs=6, multioutput='uniform_average').to(device)
-
-#     # Training loop
-#     for epoch in range(CFG.epochs):
-#         # Training
-#         model.train()
-#         total_train_r2 = 0.0
-#         train_batches = 0
-
-#         for batch_idx, (inputs_dict, (targets, aux_targets)) in enumerate(tqdm(train_dataloader)):
-#             optimizer.zero_grad()
-
-#             # Move data to GPU
-#             inputs_images = inputs_dict['images'].to(device, dtype=torch.float32)
-#             inputs_features = inputs_dict['features'].to(device, dtype=torch.float32)
-#             targets = targets.to(device, dtype=torch.float32)
-#             aux_targets = aux_targets.to(device, dtype=torch.float32)
-
-#             # Forward pass
-#             outputs = model(inputs_images, inputs_features)
-
-#             # Compute losses
-#             loss_head = weight_head * criterion_head(outputs['head'], targets)
-#             loss_aux_head = weight_aux_head * criterion_aux_head(outputs['aux_head'], aux_targets)
-#             loss = loss_head + loss_aux_head
-
-#             # Backward pass and optimization
-#             loss.backward()
-#             optimizer.step()
-
-#             # Update the R2 metric
-#             r2_value = metric_head(outputs['head'], targets)
-#             total_train_r2 += r2_value.item()
-#             train_batches += 1
-
-#         # Compute the average training R2 score
-#         avg_train_r2 = total_train_r2 / train_batches
-#         print(f"Epoch {epoch + 1}/{CFG.epochs}, Average Train R2 Score: {avg_train_r2}")
-
-#         # Validation
-#         model.eval()
-#         total_val_r2 = 0.0
-#         val_batches = 0
-
-#         with torch.no_grad():
-#             for val_batch_idx, (val_inputs_dict, (val_targets, val_aux_targets)) in enumerate(tqdm(valid_dataloader)):
-#                 val_inputs_images = val_inputs_dict['images'].to(device, dtype=torch.float32)
-#                 val_inputs_features = val_inputs_dict['features'].to(device, dtype=torch.float32)
-#                 val_targets = val_targets.to(device, dtype=torch.float32)
-#                 val_aux_targets = val_aux_targets.to(device, dtype=torch.float32)
-
-#                 val_outputs = model(val_inputs_images, val_inputs_features)
-
-#                 # Compute the R2 metric for validation
-#                 r2_value = metric_head(val_outputs['head'], val_targets)
-#                 total_val_r2 += r2_value.item()
-#                 val_batches += 1
-
-#         # Compute the average validation R2 score
-#         avg_val_r2 = total_val_r2 / val_batches
-#         print(f"Epoch {epoch + 1}/{CFG.epochs}, Average Val R2 Score: {avg_val_r2}")
-
-#         # Save the best model based on validation R2 score
-#         if avg_val_r2 > best_r2_score:
-#             best_r2_score = avg_val_r2
-#             torch.save(model.state_dict(), best_model_path)
-
-#     model.eval()  # Set the model to evaluation mode
-
-#     # List to store predictions
-#     all_predictions = []
-
-#     # Test
-#     test_paths = test_df.image_path.values
-#     test_features = scaler.transform(test_df[FEATURE_COLS].values) 
-#     test_ds = build_dataset(test_paths, test_features, batch_size=CFG.batch_size,
-#                             repeat=False, shuffle=False, augment=False, cache=False)
-
-#     # Iterate over batches in the test data loader
-#     for batch_idx, inputs_dict in enumerate(tqdm(test_ds, desc='Testing')):
-#         # Extract images and features from the inputs_dict
-#         inputs_images = inputs_dict['images'].to(device, dtype=torch.float32)  # Assuming 'device' is the target device
-#         inputs_features = inputs_dict['features'].to(device, dtype=torch.float32)
-
-#         # Forward pass
-#         with torch.no_grad():
-#             outputs = model(inputs_images, inputs_features)
-
-#         # Get predictions
-#         predictions = outputs['head'].cpu().numpy()  # Assuming 'head' is the main task output
-
-#         # Append predictions to the list
-#         all_predictions.append(predictions)
-
-#     # Concatenate predictions for all batches
-#     all_predictions = np.concatenate(all_predictions, axis=0)
-
-#     pred_df = test_df[["id"]].copy()
-#     target_cols = [x.replace("_mean","") for x in CFG.class_names]
-#     pred_df[target_cols] = all_predictions.tolist()
-#     sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission.csv')
-#     sub_df = sub_df[["id"]].copy()
-#     sub_df = sub_df.merge(pred_df, on="id", how="left")
-#     sub_df.to_csv("submission.csv", index=False)
-#     sub_df.head()           

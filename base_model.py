@@ -25,7 +25,7 @@ class CFG:
     preset = "efficientnetv2_b2_imagenet"  # Name of pretrained classifier
     image_size = [224, 224]  # Input image size
     epochs = 12 # Training epochs
-    batch_size = 96  # Batch size
+    batch_size = 16  # Batch size
     lr_mode = "step" # LR scheduler mode from one of "cos", "step", "exp"
     drop_remainder = True  # Drop incomplete batches
     num_classes = 6 # Number of classes in the dataset
@@ -349,7 +349,7 @@ def get_lr_callback(batch_size=8, mode='cos', epochs=10, plot=False):
 
 lr_cb = get_lr_callback(CFG.batch_size, mode=CFG.lr_mode, plot=True)
 ckpt_cb = keras.callbacks.ModelCheckpoint(
-    "best_model.keras",
+    "EfficientNetV2_B2_base.keras",
     monitor="val_head_r2",
     save_best_only=True,
     save_weights_only=False,
@@ -364,3 +364,31 @@ history = model.fit(
     validation_data=valid_ds,
     verbose=CFG.verbose,
 )
+
+# Best Result
+best_R2 = max(history.history['val_head_r2'])
+best_Epoch = np.argmax(history.history['val_head_r2']) + 1
+print("#" * 10 + " Result " + "#" * 10)
+print(f"Best R2: {best_R2:.5f}")
+print(f"Best Epoch: {best_Epoch}")
+print("#" * 28)
+
+model.load_weights("EfficientNetV2_B2_base.keras")
+
+# Test
+test_paths = test_df.image_path.values
+test_features = scaler.transform(test_df[FEATURE_COLS].values) 
+test_ds = build_dataset(test_paths, test_features, batch_size=CFG.batch_size,
+                        repeat=False, shuffle=False, augment=False, cache=False)
+preds = model.predict(test_ds)["head"]
+
+pred_df = test_df[["id"]].copy()
+target_cols = [x.replace("_mean","") for x in CFG.class_names]
+pred_df[target_cols] = preds.tolist()
+
+sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission.csv')
+sub_df = sub_df[["id"]].copy()
+sub_df = sub_df.merge(pred_df, on="id", how="left")
+sub_df.to_csv("submission.csv", index=False)
+sub_df.head()
+
