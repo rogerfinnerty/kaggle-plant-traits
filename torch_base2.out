@@ -1,0 +1,36 @@
+          id  ...                                       image_path
+0  192027691  ...  ../planttraits2024//train_images/192027691.jpeg
+1  195542235  ...  ../planttraits2024//train_images/195542235.jpeg
+
+[2 rows x 177 columns]
+          id  ...                                      image_path
+0  201238668  ...  ../planttraits2024//test_images/201238668.jpeg
+1  202310319  ...  ../planttraits2024//test_images/202310319.jpeg
+
+[2 rows x 165 columns]
+# Num Train: 44391 | Num Valid: 11098
+  0%|          | 0/5549 [00:00<?, ?it/s]  0%|          | 0/5549 [00:02<?, ?it/s]
+Traceback (most recent call last):
+  File "/projectnb/cs585/burnham1/final/kaggle-plant-traits/torch_base22.py", line 319, in <module>
+    outputs = model(inputs_images, inputs_features)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/final/kaggle-plant-traits/torch_base22.py", line 211, in forward
+    x1 = self.backbone(img)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/timm/models/resnet.py", line 579, in forward
+    x = self.forward_head(x)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/timm/models/resnet.py", line 575, in forward_head
+    return x if pre_logits else self.fc(x)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 116, in forward
+    return F.linear(input, self.weight, self.bias)
+RuntimeError: mat1 and mat2 shapes cannot be multiplied (16384x1 and 2048x1000)

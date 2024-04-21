@@ -1,0 +1,28 @@
+          id  ...                                       image_path
+0  192027691  ...  ../planttraits2024//train_images/192027691.jpeg
+1  195542235  ...  ../planttraits2024//train_images/195542235.jpeg
+
+[2 rows x 177 columns]
+          id  ...                                      image_path
+0  201238668  ...  ../planttraits2024//test_images/201238668.jpeg
+1  202310319  ...  ../planttraits2024//test_images/202310319.jpeg
+
+[2 rows x 165 columns]
+# Num Train: 44391 | Num Valid: 11098
+  0%|          | 0/5549 [00:00<?, ?it/s]  0%|          | 0/5549 [00:02<?, ?it/s]
+Traceback (most recent call last):
+  File "/projectnb/cs585/burnham1/final/kaggle-plant-traits/torch_base33.py", line 319, in <module>
+    outputs = model(inputs_images, inputs_features)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/final/kaggle-plant-traits/torch_base33.py", line 222, in forward
+    out1 = self.head(concat)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/projectnb/cs585/burnham1/.conda/envs/cs585/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 116, in forward
+    return F.linear(input, self.weight, self.bias)
+RuntimeError: mat1 and mat2 shapes cannot be multiplied (8x1600 and 1064x6)

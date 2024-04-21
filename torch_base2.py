@@ -292,7 +292,7 @@ weight_head = 1.0
 weight_aux_head = 0.3
 
 # Model checkpoint
-best_model_path = f'{CFG.model_name}_best_model.pth'
+best_model_path = f'{CFG.model_name}_best_model2.pth'
 best_r2_score = -float('inf')
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.lr)
 
