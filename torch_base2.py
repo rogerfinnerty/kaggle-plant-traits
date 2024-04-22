@@ -39,6 +39,7 @@ class CFG:
     seed = 42  # Random seed
     # model_name = 'maxvit_tiny_tf_384.in1k'  # Name of pretrained classifier
     model_name = 'resnet50.a1_in1k'  # Name of pretrained classifier
+    # model_name = 'resnet50d'  # Name of pretrained classifier
     # model_name = 'efficientnet_b3.ra2_in1k'  # Name of pretrained classifier
     image_size = 384  # Input image size
     epochs = 12 # Training epochs
@@ -188,11 +189,15 @@ class CustomModel(nn.Module):
         self.img_input = nn.Identity()
         self.feat_input = nn.Identity()
 
-        # Load pre-trained EfficientNetV2 model
-        self.backbone = timm.create_model(model_name, pretrained=True)
-
+        # Load pre-trained model
+        self.backbone = timm.create_model(model_name, 
+                                          pretrained=True, 
+                                        #   num_classes=num_classes, 
+                                          global_pool='avg'
+                                          )
+        
         # Adapt the model to match the expected output size
-        self.backbone.global_pool = nn.AdaptiveAvgPool2d(1)
+        # self.backbone.global_pool = nn.AdaptiveAvgPool2d(1)
         self.backbone.classifier = nn.Identity()
 
         self.dropout_img = nn.Dropout(0.2)
@@ -205,6 +210,10 @@ class CustomModel(nn.Module):
         # Output layer
         self.head = nn.Linear(1064, num_classes)
         self.aux_head = nn.Linear(1064, aux_num_classes)
+
+        print(f'Model Name: {model_name}')
+        print(f'Model pooling: {self.backbone.global_pool}')
+        print(f'Model classifier: {self.backbone.get_classifier()}')
 
     def forward(self, img, feat):
         # Image branch

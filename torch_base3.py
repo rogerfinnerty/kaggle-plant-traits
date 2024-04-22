@@ -188,11 +188,14 @@ class CustomModel(nn.Module):
         self.img_input = nn.Identity()
         self.feat_input = nn.Identity()
 
-        # Load pre-trained EfficientNetV2 model
-        self.backbone = timm.create_model(model_name, pretrained=True)
-
+        # Load pre-trained model
+        self.backbone = timm.create_model(model_name, 
+                                          pretrained=True, 
+                                          global_pool='avg'
+                                          )
+        
         # Adapt the model to match the expected output size
-        self.backbone.global_pool = nn.AdaptiveAvgPool2d(1)
+        # self.backbone.global_pool = nn.AdaptiveAvgPool2d(1)
         self.backbone.classifier = nn.Identity()
 
         self.dropout_img = nn.Dropout(0.2)
@@ -203,8 +206,12 @@ class CustomModel(nn.Module):
         self.dropout_feat = nn.Dropout(0.1)
 
         # Output layer
-        self.head = nn.Linear(1064, num_classes)
-        self.aux_head = nn.Linear(1064, aux_num_classes)
+        self.head = nn.Linear(1600, num_classes)
+        self.aux_head = nn.Linear(1600, aux_num_classes)
+
+        print(f'Model Name: {model_name}')
+        print(f'Model pooling: {self.backbone.global_pool}')
+        print(f'Model classifier: {self.backbone.get_classifier()}')
 
     def forward(self, img, feat):
         # Image branch
@@ -292,7 +299,7 @@ weight_head = 1.0
 weight_aux_head = 0.3
 
 # Model checkpoint
-best_model_path = f'{CFG.model_name}_best_model3.pth'
+best_model_path = f'{CFG.model_name}_best_model2.pth'
 best_r2_score = -float('inf')
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.lr)
 
