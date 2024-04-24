@@ -208,7 +208,7 @@ class CustomModel(nn.Module):
         self.dense2 = nn.Linear(512, 256)
         self.dense3 = nn.Linear(256, 128)
         self.dense4 = nn.Linear(128, 64)
-        self.dense5 = nn.Linear(128, 64)
+        self.dense5 = nn.Linear(64, 64)
         self.dropout_feat = nn.Dropout(0.1)
 
         # Output layer
@@ -245,7 +245,7 @@ class CustomModel(nn.Module):
         out1 = F.relu(self.head1(concat))
         out1 = self.head2(out1)
 
-        out2 = F.relu(self.aux_head(concat))
+        out2 = F.relu(self.aux_head1(concat))
         out2 = self.aux_head2(out2)
 
         return {'head': out1, 'aux_head': out2}
