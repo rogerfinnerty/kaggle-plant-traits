@@ -2,16 +2,16 @@
 
 #$ -P cs585
 #$ -m ea
-#$ -N CS585_2v2
+#$ -N CS585_mse
 #$ -j y
-#$ -o torch_base2v2_2.out
+#$ -o resnet_mse.out
 #$ -pe omp 8
 #$ -l gpus=1
-#$ -l gpu_c=6.0
+#$ -l gpu_c=7.0
 
 ### load your environment and run the job
 
 # example:
 module load miniconda
 conda activate cs585
-python torch_base2_v2.py
+python resnet_mse.py
