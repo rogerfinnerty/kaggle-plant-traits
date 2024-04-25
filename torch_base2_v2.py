@@ -401,7 +401,7 @@ for epoch in range(CFG.epochs):
     # Print the averages along with trait names
     epoch_avg = torch.mean(torch.stack(epoch_avg_list, dim=0), dim=0)
     trait_names = ["X4", "X11", "X18", "X26", "X50", "X3112"]
-    print("Trait accuracies for training")
+    print("Trait accuracies for evaluation")
     for i, avg in enumerate(epoch_avg):
         print(f"{trait_names[i]}: {avg.item()}")
 
