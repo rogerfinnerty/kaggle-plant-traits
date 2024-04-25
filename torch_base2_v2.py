@@ -368,7 +368,7 @@ for epoch in range(CFG.epochs):
     # Print the averages along with trait names
     epoch_avg = torch.mean(torch.stack(epoch_avg_list, dim=0), dim=0)
     trait_names = ["X4", "X11", "X18", "X26", "X50", "X3112"]
-    print("Trait accuracies")
+    print("Trait accuracies for training")
     for i, avg in enumerate(epoch_avg):
         print(f"{trait_names[i]}: {avg.item()}")
 
@@ -376,6 +376,7 @@ for epoch in range(CFG.epochs):
     model.eval()
     total_val_r2 = 0.0
     val_batches = 0
+    epoch_avg_list = []
 
     with torch.no_grad():
         for val_batch_idx, (val_inputs_dict, (val_targets, val_aux_targets)) in enumerate(tqdm(valid_dataloader)):
@@ -385,6 +386,8 @@ for epoch in range(CFG.epochs):
             val_aux_targets = val_aux_targets.to(device, dtype=torch.float32)
 
             val_outputs = model(val_inputs_images, val_inputs_features)
+            batch_avg = torch.mean(torch.abs(val_outputs['head'] - val_targets) / val_targets, dim=0)
+            epoch_avg_list.append(batch_avg)
 
             # Compute the R2 metric for validation
             r2_value = metric_head(val_outputs['head'], val_targets)
@@ -394,6 +397,13 @@ for epoch in range(CFG.epochs):
     # Compute the average validation R2 score
     avg_val_r2 = total_val_r2 / val_batches
     print(f"Epoch {epoch + 1}/{CFG.epochs}, Average Val R2 Score: {avg_val_r2}")
+
+    # Print the averages along with trait names
+    epoch_avg = torch.mean(torch.stack(epoch_avg_list, dim=0), dim=0)
+    trait_names = ["X4", "X11", "X18", "X26", "X50", "X3112"]
+    print("Trait accuracies for training")
+    for i, avg in enumerate(epoch_avg):
+        print(f"{trait_names[i]}: {avg.item()}")
 
     # Save the best model based on validation R2 score
     if avg_val_r2 > best_r2_score:
@@ -436,7 +446,7 @@ pred_df = test_df[["id"]].copy()
 target_cols = [x.replace("_mean","") for x in CFG.class_names]
 pred_df[target_cols] = all_predictions.tolist()
 
-sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission_2.csv')
+sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission.csv')
 sub_df = sub_df[["id"]].copy()
 sub_df = sub_df.merge(pred_df, on="id", how="left")
 sub_df.to_csv(f"{CFG.model_name}.csv", index=False)
