@@ -4,7 +4,7 @@
 #$ -m ea
 #$ -N CS585_2v2
 #$ -j y
-#$ -o torch_base2v2.out
+#$ -o torch_base2v2_2.out
 #$ -pe omp 8
 #$ -l gpus=1
 #$ -l gpu_c=6.0

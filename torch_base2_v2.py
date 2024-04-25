@@ -318,7 +318,7 @@ weight_head = 1.0
 weight_aux_head = 0.3
 
 # Model checkpoint
-best_model_path = f'{CFG.model_name}_best_model2.pth'
+best_model_path = f'{CFG.model_name}_best_model2_2.pth'
 best_r2_score = -float('inf')
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.lr)
 
@@ -331,6 +331,7 @@ for epoch in range(CFG.epochs):
     model.train()
     total_train_r2 = 0.0
     train_batches = 0
+    epoch_avg_list = []
 
     for batch_idx, (inputs_dict, (targets, aux_targets)) in enumerate(tqdm(train_dataloader)):
         optimizer.zero_grad()
@@ -343,6 +344,8 @@ for epoch in range(CFG.epochs):
 
         # Forward pass
         outputs = model(inputs_images, inputs_features)
+        batch_avg = torch.mean(torch.abs(outputs['head'] - targets) / targets, dim=0)
+        epoch_avg_list.append(batch_avg)
 
         # Compute losses
         loss_head = weight_head * criterion_head(outputs['head'], targets)
@@ -361,6 +364,13 @@ for epoch in range(CFG.epochs):
     # Compute the average training R2 score
     avg_train_r2 = total_train_r2 / train_batches
     print(f"Epoch {epoch + 1}/{CFG.epochs}, Average Train R2 Score: {avg_train_r2}")
+    
+    # Print the averages along with trait names
+    epoch_avg = torch.mean(torch.stack(epoch_avg_list, dim=0), dim=0)
+    trait_names = ["X4", "X11", "X18", "X26", "X50", "X3112"]
+    print("Trait accuracies")
+    for i, avg in enumerate(epoch_avg):
+        print(f"{trait_names[i]}: {avg.item()}")
 
     # Validation
     model.eval()
@@ -426,7 +436,7 @@ pred_df = test_df[["id"]].copy()
 target_cols = [x.replace("_mean","") for x in CFG.class_names]
 pred_df[target_cols] = all_predictions.tolist()
 
-sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission.csv')
+sub_df = pd.read_csv(f'{BASE_PATH}/sample_submission_2.csv')
 sub_df = sub_df[["id"]].copy()
 sub_df = sub_df.merge(pred_df, on="id", how="left")
 sub_df.to_csv(f"{CFG.model_name}.csv", index=False)
